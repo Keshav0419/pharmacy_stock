@@ -20,7 +20,9 @@ function isExpired(batch, today = new Date()) {
 }
 
 function getInDateBatches(batches, today = new Date()) {
-  return batches.filter((b) => !isExpired(b, today));
+  // Quarantined batches are excluded even if somehow not yet past their
+  // expiry date — quarantine is a deliberate override, not just a label.
+  return batches.filter((b) => !isExpired(b, today) && b.status !== 'quarantined');
 }
 
 function getInDateStock(batches, today = new Date()) {
@@ -77,4 +79,20 @@ function getExpiringBatches(batches, daysThreshold, today = new Date()) {
     .sort((a, b) => new Date(a.expiry_date) - new Date(b.expiry_date));
 }
 
-module.exports = { isExpired, getInDateBatches, getInDateStock, planDispense, getExpiringBatches };
+/**
+ * Finds active batches that have now passed their expiry date and need
+ * to be quarantined. Pure — the caller applies the DB update and persists
+ * the "quarantined" status; this just decides which ones qualify.
+ */
+function findBatchesToQuarantine(batches, today = new Date()) {
+  return batches.filter((b) => (b.status || 'active') === 'active' && isExpired(b, today));
+}
+
+module.exports = {
+  isExpired,
+  getInDateBatches,
+  getInDateStock,
+  planDispense,
+  getExpiringBatches,
+  findBatchesToQuarantine,
+};

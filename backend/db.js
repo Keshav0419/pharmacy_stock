@@ -33,6 +33,7 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS medicines (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT UNIQUE NOT NULL,
+    reorder_threshold INTEGER NOT NULL DEFAULT 20,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
 
@@ -42,8 +43,14 @@ db.exec(`
     batch_code TEXT NOT NULL,
     quantity INTEGER NOT NULL CHECK(quantity >= 0),
     expiry_date TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','quarantined')),
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     UNIQUE(medicine_id, batch_code)
+  );
+
+  CREATE TABLE IF NOT EXISTS settings (
+    key TEXT PRIMARY KEY,
+    value TEXT
   );
 
   CREATE INDEX IF NOT EXISTS idx_batches_medicine ON batches(medicine_id);
