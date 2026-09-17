@@ -41,3 +41,44 @@ chose, and removes any batch that hits zero.
 ## What I'd fix with more time
 - Batch codes are free-text; validating a consistent format would catch typos earlier.
 - No audit log of dispense events yet — useful to trace who dispensed what and when.
+
+## The three "twist" features — assumptions and reasoning
+
+**Simulated clock (`/clock`).** A grading harness can't wait real days to pass, so
+"today" moved from `new Date()` calls scattered through the code into a single
+`settings` table value that every route reads via `getCurrentDate()`. This was a
+deliberate refactor, not a bolt-on: `fefo.js`'s functions already took `today` as a
+parameter from the start (rather than calling `new Date()` internally), which is
+exactly what made this swap possible without touching the core FEFO logic at all —
+a small design choice early on paid off here. Quarantine is a distinct `status`
+column rather than just relying on the expiry-date check, because the spec asked
+for an explicit quarantine action with a countable result, not just "still filtered
+out of stock" — the two happen to produce the same dispensing behavior, but only
+one of them is auditable as an event.
+
+**Messy import.** The date-parsing bug worth calling out: `new Date('2026-02-31')`
+in JavaScript doesn't throw or return an invalid date — it silently rolls over to
+March 3rd. Relying on `isNaN(new Date(...))` to validate a date string (my first
+draft) would have let non-existent calendar dates like Feb 31 or Apr 31 through as
+"valid." Fixed by checking day-of-month against `new Date(year, month, 0).getDate()`
+(which correctly returns 28/29 for February depending on leap year) instead of
+trusting the Date constructor's own validation. Tested explicitly against Feb 29 in
+a leap year (2028, valid) vs. a non-leap year (2026, invalid) to confirm the leap
+logic itself is right, not just the rejection.
+
+Deduplication happens against both the current import batch AND what's already in
+the database — re-uploading the same file twice, or a file with an overlapping
+batch code from an earlier import, doesn't fail or crash; it just gets silently
+skipped and counted under `deduped` rather than `imported`.
+
+**Reorder alerts.** The task didn't specify the Notification Service's actual
+contract (base URL, path, payload shape), so this is intentionally configurable via
+`NOTIFICATION_SERVICE_URL`/`NOTIFICATION_SERVICE_PATH` env vars rather than
+hardcoded — same "state the assumption, make it easy to correct" approach as the
+partial-dispense decision earlier. The alert is edge-triggered (fires only on the
+dispense that causes stock to cross below the threshold) rather than level-triggered
+(fires on every dispense while stock happens to be low), to avoid spamming
+duplicate alerts for a medicine that stays low for days. The notification send is
+fire-and-forget — a failed or unreachable Notification Service never blocks or
+fails the dispense request itself, since a stock movement is the primary action and
+a downstream integration failing shouldn't roll it back.
