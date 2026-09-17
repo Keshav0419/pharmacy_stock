@@ -9,7 +9,7 @@
 
 **AI tool used:** Claude (Anthropic) — via claude.ai chat
 **Where this conversation is stored:** [paste the claude.ai conversation link here if you have one, or note "exported from claude.ai chat history"]
-
+https://github.com/Keshav0419/pharmacy_stock
 ---
 
 <!-- Paste your full, real chat transcript below this line, unedited. -->
