@@ -1,0 +1,8 @@
+{
+  "name": "pharmacy-stock-root",
+  "private": true,
+  "scripts": {
+    "start": "cd backend && npm install && npm start",
+    "setup": "cd backend && npm install"
+  }
+}

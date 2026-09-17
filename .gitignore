@@ -1,0 +1,5 @@
+node_modules/
+pharmacy.db
+pharmacy.db-wal
+pharmacy.db-shm
+.env
