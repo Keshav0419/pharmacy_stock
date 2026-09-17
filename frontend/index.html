@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>StockGuard — FEFO stock control for pharmacies</title>
+  <link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body>
+  <nav class="nav">
+    <a class="brand" href="/">💊 StockGuard</a>
+    <div>
+      <a class="btn secondary" href="/login.html">Log in</a>
+      <a class="btn" href="/register.html">Get started</a>
+    </div>
+  </nav>
+
+  <div class="hero">
+    <span class="kicker">Batch-level stock control</span>
+    <h1>Never dispense an expired batch again.</h1>
+    <p class="tagline">
+      StockGuard tracks every batch of every medicine by expiry date, always
+      dispenses the soonest-expiring stock first, and tells you exactly what's
+      sellable — and what's about to expire — before it becomes a problem.
+    </p>
+    <a class="btn" href="/register.html" style="font-size:1rem; padding:12px 26px;">Set up your pharmacy →</a>
+  </div>
+
+  <div class="features">
+    <div class="feature-card">
+      <span class="icon">📦</span>
+      <h3>Batch-accurate stock</h3>
+      <p>Every batch is logged with its own quantity and expiry date — nothing gets lumped together.</p>
+    </div>
+    <div class="feature-card">
+      <span class="icon">⏱️</span>
+      <h3>FEFO dispensing, automatically</h3>
+      <p>Dispensing always drains the soonest-expiring in-date batch first. Expired stock is never touched.</p>
+    </div>
+    <div class="feature-card">
+      <span class="icon">🔍</span>
+      <h3>"Do we have it in date?"</h3>
+      <p>Search any medicine and get an instant answer plus the exact in-date quantity.</p>
+    </div>
+    <div class="feature-card">
+      <span class="icon">⚠️</span>
+      <h3>Expiry alerts</h3>
+      <p>See every batch expiring within a chosen window, sorted by urgency, before it's wasted stock.</p>
+    </div>
+  </div>
+
+  <section class="section">
+    <h2>What it is</h2>
+    <p>
+      A batch-level stock manager for pharmacies: log every batch as it arrives with
+      its expiry date, dispense against automatic first-expiry-first-out (FEFO) logic,
+      and get an accurate in-date stock count for any medicine at any moment.
+    </p>
+  </section>
+
+  <section class="section">
+    <h2>Who it's for</h2>
+    <p>
+      Neighbourhood and independent pharmacies currently tracking batches on paper or
+      in a spreadsheet, where it's easy to accidentally dispense an older batch after
+      a newer one, or lose track of what's about to expire on the shelf.
+    </p>
+  </section>
+
+  <section class="section">
+    <h2>How it helps</h2>
+    <p>
+      No more manually checking dates before handing over a strip of tablets, and no
+      more discovering expired stock only when a customer complains. The pharmacist
+      logs in, sees exactly what's sellable and what's expiring, and dispenses with
+      one click knowing the oldest-safe batch was used.
+    </p>
+  </section>
+
+  <section class="section">
+    <h2>What we'd build next</h2>
+    <ul>
+      <li><strong>Supplier reorder suggestions</strong> — auto-flag medicines whose in-date stock has dropped below a threshold.</li>
+      <li><strong>Barcode scanning</strong> — scan a batch on arrival and at dispense time instead of typing batch codes by hand.</li>
+      <li><strong>Multi-branch view</strong> — for pharmacies with more than one location, a combined stock and alerts dashboard.</li>
+    </ul>
+  </section>
+
+  <footer>StockGuard — built for the pharmacy counter, not a warehouse.</footer>
+</body>
+</html>

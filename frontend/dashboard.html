@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Dashboard — StockGuard</title>
+  <link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body>
+  <nav class="nav">
+    <a class="brand" href="/">💊 StockGuard</a>
+    <div>
+      <button class="btn secondary" onclick="logout()">Log out</button>
+    </div>
+  </nav>
+
+  <div class="stats">
+    <div class="stat-card">
+      <div class="value" id="statMedicines">—</div>
+      <div class="label">Medicines tracked</div>
+    </div>
+    <div class="stat-card accent">
+      <div class="value" id="statInDate">—</div>
+      <div class="label">Units in-date right now</div>
+    </div>
+    <div class="stat-card warn">
+      <div class="value" id="statExpiring">—</div>
+      <div class="label">Batches expiring within 30 days</div>
+    </div>
+  </div>
+
+  <div class="card wide">
+    <h2>Add a batch</h2>
+    <form id="batchForm" style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end;">
+      <div style="flex:1; min-width:160px;">
+        <label>Medicine name</label>
+        <input id="medName" required />
+      </div>
+      <div style="flex:1; min-width:120px;">
+        <label>Batch code</label>
+        <input id="batchCode" required />
+      </div>
+      <div style="flex:1; min-width:100px;">
+        <label>Quantity</label>
+        <input id="quantity" type="number" min="1" required />
+      </div>
+      <div style="flex:1; min-width:140px;">
+        <label>Expiry date</label>
+        <input id="expiryDate" type="date" required />
+      </div>
+      <button class="btn" type="submit">Add batch</button>
+    </form>
+  </div>
+
+  <div class="card wide">
+    <h2>Expiring soon</h2>
+    <div class="toolbar">
+      <label style="margin:0;">within</label>
+      <input id="alertDays" type="number" value="30" min="1" style="width:80px;" />
+      <label style="margin:0;">days</label>
+      <button class="btn small secondary" id="refreshAlerts">Refresh</button>
+    </div>
+    <div id="alertsPanel"></div>
+  </div>
+
+  <div class="card wide">
+    <h2>Medicines</h2>
+    <div class="toolbar">
+      <input id="search" placeholder="Search medicine name…" />
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th data-sort="name">Medicine ⇕</th>
+          <th data-sort="inDateStock">In-date stock ⇕</th>
+          <th data-sort="totalBatches">Batches ⇕</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="rows"></tbody>
+    </table>
+
+    <div class="pagination">
+      <button class="btn small secondary" id="prevPage">← Prev</button>
+      <span id="pageInfo"></span>
+      <button class="btn small secondary" id="nextPage">Next →</button>
+    </div>
+  </div>
+
+  <!-- Dispense modal -->
+  <div class="modal-backdrop hidden" id="dispenseModal">
+    <div class="modal">
+      <h3 id="dispenseTitle">Dispense</h3>
+      <label>Quantity</label>
+      <input id="dispenseQty" type="number" min="1" />
+      <button class="btn" id="doDispenseBtn" style="margin-top:16px; width:100%;">Dispense (FEFO)</button>
+      <div id="dispenseResult" style="margin-top:16px;"></div>
+      <button class="btn secondary" style="margin-top:12px; width:100%;" onclick="closeDispenseModal()">Close</button>
+    </div>
+  </div>
+
+  <!-- Batch detail modal -->
+  <div class="modal-backdrop hidden" id="detailModal">
+    <div class="modal" style="width:460px;">
+      <h3 id="detailTitle">Batches</h3>
+      <div id="detailBody"></div>
+      <button class="btn secondary" style="margin-top:16px; width:100%;" onclick="closeDetailModal()">Close</button>
+    </div>
+  </div>
+
+  <script src="/js/app.js"></script>
+  <script>
+    requireLoggedIn();
+
+    let state = { page: 1, pageSize: 10, sortBy: 'name', order: 'asc', search: '' };
+    let currentMedicineId = null;
+
+    async function loadMedicines() {
+      const params = new URLSearchParams({
+        page: state.page, pageSize: state.pageSize, sortBy: state.sortBy,
+        order: state.order, search: state.search,
+      });
+      try {
+        const res = await apiFetch(`/api/medicines?${params}`);
+        const data = await res.json();
+        renderRows(data.medicines);
+        const totalPages = Math.max(1, Math.ceil(data.total / data.pageSize));
+        document.getElementById('pageInfo').textContent = `Page ${data.page} of ${totalPages} (${data.total} medicines)`;
+        document.getElementById('prevPage').disabled = data.page <= 1;
+        document.getElementById('nextPage').disabled = data.page >= totalPages;
+      } catch (err) {
+        toast(err.message || 'Could not load medicines', 'error');
+      }
+    }
+
+    async function loadStats() {
+      try {
+        const res = await apiFetch('/api/medicines?pageSize=1000');
+        const data = await res.json();
+        document.getElementById('statMedicines').textContent = data.total;
+        const totalInDate = data.medicines.reduce((sum, m) => sum + m.inDateStock, 0);
+        document.getElementById('statInDate').textContent = totalInDate;
+      } catch { /* stats are non-critical, ignore silently */ }
+    }
+
+    function renderRows(medicines) {
+      const tbody = document.getElementById('rows');
+      tbody.innerHTML = '';
+      if (!medicines.length) {
+        tbody.innerHTML = '<tr><td colspan="4" style="color:var(--muted); padding:20px 10px;">No medicines yet — add a batch above to get started.</td></tr>';
+        return;
+      }
+      for (const m of medicines) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${escapeHtml(m.name)}</td>
+          <td>${m.inDateStock}</td>
+          <td>${m.totalBatches}</td>
+          <td>
+            <button class="btn small secondary" data-action="detail" data-id="${m.id}">Batches</button>
+            <button class="btn small" data-action="dispense" data-id="${m.id}" data-name="${escapeHtml(m.name)}">Dispense</button>
+          </td>`;
+        tbody.appendChild(tr);
+      }
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+
+    document.getElementById('rows').addEventListener('click', async (e) => {
+      const btn = e.target.closest('button[data-action]');
+      if (!btn) return;
+      const id = btn.dataset.id;
+      if (btn.dataset.action === 'dispense') {
+        openDispenseModal(id, btn.dataset.name);
+      } else if (btn.dataset.action === 'detail') {
+        openDetailModal(id);
+      }
+    });
+
+    document.querySelectorAll('th[data-sort]').forEach((th) => {
+      th.addEventListener('click', () => {
+        const col = th.dataset.sort;
+        if (state.sortBy === col) {
+          state.order = state.order === 'asc' ? 'desc' : 'asc';
+        } else {
+          state.sortBy = col;
+          state.order = 'asc';
+        }
+        state.page = 1;
+        loadMedicines();
+      });
+    });
+
+    document.getElementById('search').addEventListener('input', (e) => {
+      state.search = e.target.value;
+      state.page = 1;
+      loadMedicines();
+    });
+    document.getElementById('prevPage').addEventListener('click', () => {
+      state.page = Math.max(1, state.page - 1);
+      loadMedicines();
+    });
+    document.getElementById('nextPage').addEventListener('click', () => {
+      state.page += 1;
+      loadMedicines();
+    });
+
+    document.getElementById('batchForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const body = {
+        medicineName: document.getElementById('medName').value.trim(),
+        batchCode: document.getElementById('batchCode').value.trim(),
+        quantity: Number(document.getElementById('quantity').value),
+        expiryDate: document.getElementById('expiryDate').value,
+      };
+      try {
+        const res = await apiFetch('/api/medicines/batches', { method: 'POST', body: JSON.stringify(body) });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'could not add batch');
+        document.getElementById('batchForm').reset();
+        toast(`Added batch ${body.batchCode} for ${body.medicineName}`, 'success');
+        loadMedicines();
+        loadStats();
+      } catch (err) {
+        toast(err.message, 'error');
+      }
+    });
+
+    function openDispenseModal(id, name) {
+      currentMedicineId = id;
+      document.getElementById('dispenseTitle').textContent = `Dispense — ${name}`;
+      document.getElementById('dispenseQty').value = '';
+      document.getElementById('dispenseResult').innerHTML = '';
+      document.getElementById('dispenseModal').classList.remove('hidden');
+    }
+    function closeDispenseModal() {
+      document.getElementById('dispenseModal').classList.add('hidden');
+      loadMedicines();
+      loadStats();
+    }
+
+    document.getElementById('doDispenseBtn').addEventListener('click', async () => {
+      const quantity = Number(document.getElementById('dispenseQty').value);
+      if (!quantity || quantity <= 0) { toast('Enter a quantity first', 'error'); return; }
+      try {
+        const res = await apiFetch(`/api/medicines/${currentMedicineId}/dispense`, {
+          method: 'POST', body: JSON.stringify({ quantity }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'dispense failed');
+        const shortfallLine = data.shortfall > 0
+          ? `<p style="color:var(--danger);">Shortfall: ${data.shortfall} units not available in date.</p>` : '';
+        document.getElementById('dispenseResult').innerHTML = `
+          <p>Dispensed <strong>${data.totalDispensed}</strong> of ${data.requested} requested.</p>
+          ${shortfallLine}
+          <p style="font-size:0.85rem; color:var(--muted);">
+            From batches: ${data.fromBatches.map(b => `#${b.batchId} (${b.take})`).join(', ') || '—'}
+          </p>`;
+        toast(data.shortfall > 0 ? 'Dispensed with a shortfall — see details' : 'Dispensed successfully', data.shortfall > 0 ? 'error' : 'success');
+      } catch (err) {
+        toast(err.message, 'error');
+      }
+    });
+
+    async function openDetailModal(id) {
+      currentMedicineId = id;
+      try {
+        const res = await apiFetch(`/api/medicines/${id}`);
+        const data = await res.json();
+        document.getElementById('detailTitle').textContent = `${data.name} — batches (soonest expiry first)`;
+        const today = new Date(); today.setHours(0,0,0,0);
+        const rows = data.batches.map(b => {
+          const expired = new Date(b.expiry_date) < today;
+          return `<tr>
+            <td>${escapeHtml(b.batch_code)}</td>
+            <td>${b.quantity}</td>
+            <td style="${expired ? 'color:var(--danger);' : ''}">${b.expiry_date}${expired ? ' (expired)' : ''}</td>
+          </tr>`;
+        }).join('');
+        document.getElementById('detailBody').innerHTML = `
+          <p>In-date stock: <strong>${data.inDateStock}</strong></p>
+          <table><thead><tr><th>Batch</th><th>Qty</th><th>Expiry</th></tr></thead>
+          <tbody>${rows || '<tr><td colspan="3">No batches.</td></tr>'}</tbody></table>`;
+        document.getElementById('detailModal').classList.remove('hidden');
+      } catch (err) {
+        toast(err.message, 'error');
+      }
+    }
+    function closeDetailModal() {
+      document.getElementById('detailModal').classList.add('hidden');
+    }
+
+    async function loadAlerts() {
+      const days = Number(document.getElementById('alertDays').value) || 30;
+      try {
+        const res = await apiFetch(`/api/alerts/expiring?days=${days}`);
+        const data = await res.json();
+        const panel = document.getElementById('alertsPanel');
+        const totalBatches = data.results.reduce((sum, r) => sum + r.batches.length, 0);
+        document.getElementById('statExpiring').textContent = totalBatches;
+        if (!data.results.length) {
+          panel.innerHTML = `<p style="color:var(--muted);">Nothing expiring within ${days} days.</p>`;
+          return;
+        }
+        panel.innerHTML = data.results.map(r => `
+          <div style="margin-bottom:10px;">
+            <strong>${escapeHtml(r.medicine)}</strong>
+            <ul style="margin:4px 0 0 18px; color:var(--muted); font-size:0.88rem;">
+              ${r.batches.map(b => `<li>${escapeHtml(b.batch_code)} — ${b.quantity} units — expires ${b.expiry_date}</li>`).join('')}
+            </ul>
+          </div>`).join('');
+      } catch (err) {
+        toast(err.message, 'error');
+      }
+    }
+    document.getElementById('refreshAlerts').addEventListener('click', loadAlerts);
+
+    loadMedicines();
+    loadStats();
+    loadAlerts();
+  </script>
+</body>
+</html>
